@@ -62,11 +62,17 @@ impl ConversionStrategy {
                     });
                     quote_spanned! {span=>{
                         let pair = #pair;
-                        if pair.as_rule() == #rule {
+                        let found_rule = pair.clone().as_rule();
+                        if found_rule == #rule {
                             pair.as_span()
                         } else {
                             #error_msg
-                            return Err(::from_pest::ConversionError::NoMatch)
+                            return Err(::from_pest::ConversionError::NoMatch(
+                                ::from_pest::NoMatch::new(
+                                    #rule,
+                                    found_rule
+                                )
+                            ))
                             // TODO: Should this be panicking instead?
                             // panic!(
                             //     concat!(

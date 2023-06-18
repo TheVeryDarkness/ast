@@ -103,7 +103,7 @@ pub(crate) fn derive(
 
             fn from_pest(
                 pest: &mut ::from_pest::pest::iterators::Pairs<#from_pest_lifetime, #rule_enum>
-            ) -> ::std::result::Result<Self, ::from_pest::ConversionError<::from_pest::Void>> {
+            ) -> ::std::result::Result<Self, ::from_pest::ConversionError<::from_pest::Void, Rule>> {
                 #implementation
             }
         }
@@ -141,8 +141,9 @@ fn derive_for_struct(
 
     Ok(quote! {
         let mut clone = pest.clone();
-        let pair = clone.next().ok_or(::from_pest::ConversionError::NoMatch)?;
-        if pair.as_rule() == #rule_enum::#rule_variant {
+        let pair = clone.next().ok_or(::from_pest::ConversionError::Empty)?;
+        let found_rule = pair.as_rule();
+        if found_rule == #rule_enum::#rule_variant {
             let span = pair.as_span();
             let mut inner = pair.into_inner();
             let inner = &mut inner;
@@ -156,7 +157,11 @@ fn derive_for_struct(
             *pest = clone;
             Ok(this)
         } else {
-            Err(::from_pest::ConversionError::NoMatch)
+            Err(::from_pest::ConversionError::NoMatch(
+                ::from_pest::NoMatch::new(
+                    #rule_enum::#rule_variant, found_rule
+                )
+            ))
         }
     })
 }
@@ -201,16 +206,27 @@ fn derive_for_enum(
 
     Ok(quote! {
         let mut clone = pest.clone();
-        let pair = clone.next().ok_or(::from_pest::ConversionError::NoMatch)?;
-        if pair.as_rule() == #rule_enum::#rule_variant {
-            let this = Err(::from_pest::ConversionError::NoMatch)
-                #(.or_else(|_: ::from_pest::ConversionError<::from_pest::Void>| {
+        let pair = clone.next().ok_or(::from_pest::ConversionError::Empty)?;
+        let found_rule = pair.as_rule();
+        if found_rule == #rule_enum::#rule_variant {
+            let this = Err(::from_pest::ConversionError::NoMatch(
+                ::from_pest::NoMatch::new(
+                    #rule_enum::#rule_variant,
+                    found_rule
+                )
+            ))
+                #(.or_else(|_: ::from_pest::ConversionError<::from_pest::Void, #rule_enum>| {
                     #convert_variants
                 }))*?;
             *pest = clone;
             Ok(this)
         } else {
-            Err(::from_pest::ConversionError::NoMatch)
+            Err(::from_pest::ConversionError::NoMatch(
+                ::from_pest::NoMatch::new(
+                    #rule_enum::#rule_variant,
+                    found_rule
+                )
+            ))
         }
     })
 }
