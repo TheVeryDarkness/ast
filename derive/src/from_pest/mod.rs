@@ -136,13 +136,19 @@ fn derive_for_struct(
     let construct = field::convert(&parse_quote!(#name), fields)?;
 
     let extraneous = crate::trace(
-        quote! { "when converting {}, found extraneous {:?}", stringify!(#name), inner},
+        quote! { "When converting {}, found extraneous {:?}", stringify!(#name), inner},
     );
+
+    let unmatched = crate::trace(quote! {
+        "Expected rule {:?}, found rule {:?}", expected_rule, found_rule
+    });
 
     Ok(quote! {
         let mut clone = pest.clone();
         let pair = clone.next().ok_or(::from_pest::ConversionError::NoMatch)?;
-        if pair.as_rule() == #rule_enum::#rule_variant {
+        let found_rule = pair.as_rule();
+        let expected_rule = #rule_enum::#rule_variant;
+        if found_rule == expected_rule {
             let span = pair.as_span();
             let mut inner = pair.into_inner();
             let inner = &mut inner;
@@ -156,6 +162,7 @@ fn derive_for_struct(
             *pest = clone;
             Ok(this)
         } else {
+            #unmatched
             Err(::from_pest::ConversionError::NoMatch)
         }
     })
@@ -180,7 +187,7 @@ fn derive_for_enum(
             let variant_name = variant.ident;
             let construct_variant = field::convert(&parse_quote!(#name::#variant_name), variant.fields)?;
             let extraneous = crate::trace(quote! {
-                "when converting {}, found extraneous {:?}", stringify!(#name), stringify!(#variant_name)
+                "When converting {}, found extraneous {:?}", stringify!(#name), stringify!(#variant_name)
             });
 
             Ok(quote! {
@@ -199,10 +206,16 @@ fn derive_for_enum(
         })
         .collect::<Result<_>>()?;
 
+    let unmatched = crate::trace(quote! {
+        "Expected rule {:?}, found rule {:?}", expected_rule, found_rule
+    });
+
     Ok(quote! {
         let mut clone = pest.clone();
         let pair = clone.next().ok_or(::from_pest::ConversionError::NoMatch)?;
-        if pair.as_rule() == #rule_enum::#rule_variant {
+        let found_rule = pair.as_rule();
+        let expected_rule = #rule_enum::#rule_variant;
+        if found_rule == expected_rule {
             let this = Err(::from_pest::ConversionError::NoMatch)
                 #(.or_else(|_: ::from_pest::ConversionError<::from_pest::Void>| {
                     #convert_variants
@@ -210,6 +223,7 @@ fn derive_for_enum(
             *pest = clone;
             Ok(this)
         } else {
+            #unmatched
             Err(::from_pest::ConversionError::NoMatch)
         }
     })
