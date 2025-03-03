@@ -1,3 +1,5 @@
+use syn::Variant;
+
 use {
     proc_macro2::{Span, TokenStream},
     syn::{
@@ -44,9 +46,7 @@ impl ConversionStrategy {
     fn apply(self, member: Member) -> TokenStream {
         let conversion = match self {
             ConversionStrategy::FromPest => quote!(::from_pest::FromPest::from_pest(inner)?),
-            ConversionStrategy::Outer(span, mods) => {
-                with_mods(quote_spanned!(span=>span.clone()), mods)
-            }
+            ConversionStrategy::Outer(span, mods) => with_mods(quote_spanned!(span=>span), mods),
             ConversionStrategy::Inner(span, mods, rule) => {
                 let pair = quote!(inner.next().ok_or(::from_pest::ConversionError::NoMatch)?);
                 let get_span = if let Some(rule) = rule {
@@ -101,7 +101,8 @@ fn with_mods(stream: TokenStream, mods: Vec<Path>) -> TokenStream {
         .fold(stream, |stream, path| quote!(#path(#stream)))
 }
 
-pub fn convert(name: &Path, fields: Fields) -> Result<TokenStream> {
+pub fn enum_convert(name: &Path, variant: &Variant) -> Result<TokenStream> {
+    let fields = variant.fields.clone();
     Ok(match fields {
         Fields::Named(fields) => {
             let fields: Vec<_> = fields
@@ -128,6 +129,44 @@ pub fn convert(name: &Path, fields: Fields) -> Result<TokenStream> {
                 .collect::<Result<_>>()?;
             quote!(#name(#(#fields),*))
         }
-        Fields::Unit => quote!(#name),
+        Fields::Unit => {
+            let attrs = FieldAttribute::from_attributes(variant.attrs.clone())?;
+            let real_name =
+                ConversionStrategy::from_attrs(attrs)?.apply(Member::Unnamed(Index::from(0)));
+            quote!(#real_name)
+        }
+    })
+}
+
+pub fn struct_convert(name: &Path, fields: Fields) -> Result<TokenStream> {
+    Ok(match fields {
+        Fields::Named(fields) => {
+            let fields: Vec<_> = fields
+                .named
+                .into_iter()
+                .map(|field| {
+                    let attrs = FieldAttribute::from_attributes(field.attrs)?;
+                    Ok(ConversionStrategy::from_attrs(attrs)?
+                        .apply(Member::Named(field.ident.unwrap())))
+                })
+                .collect::<Result<_>>()?;
+            quote!(#name{#(#fields,)*})
+        }
+        Fields::Unnamed(fields) => {
+            let fields: Vec<_> = fields
+                .unnamed
+                .into_iter()
+                .enumerate()
+                .map(|(i, field)| {
+                    let attrs = FieldAttribute::from_attributes(field.attrs)?;
+                    Ok(ConversionStrategy::from_attrs(attrs)?
+                        .apply(Member::Unnamed(Index::from(i))))
+                })
+                .collect::<Result<_>>()?;
+            quote!(#name(#(#fields),*))
+        }
+        Fields::Unit => {
+            quote!(#name)
+        }
     })
 }

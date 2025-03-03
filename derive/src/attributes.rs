@@ -32,6 +32,7 @@ pub(crate) enum DeriveAttribute {
     Rule(RuleAttribute),
 }
 
+#[derive(Debug)]
 /// `#[pest_ast(..)]` for fields in `#[derive(FromPest)]`
 pub(crate) enum FieldAttribute {
     /// `outer(with(path::to),*)`
@@ -47,12 +48,14 @@ pub(crate) struct GrammarAttribute {
     pub(crate) lit: LitStr,
 }
 
+#[derive(Debug)]
 pub(crate) struct OuterAttribute {
     pub(crate) outer: kw::outer,
     pub(crate) paren: Paren,
     pub(crate) with: Punctuated<WithAttribute, Token![,]>,
 }
 
+#[derive(Debug)]
 pub(crate) struct InnerAttribute {
     pub(crate) inner: kw::inner,
     pub(crate) paren: Paren,
@@ -61,6 +64,7 @@ pub(crate) struct InnerAttribute {
     pub(crate) with: Punctuated<WithAttribute, Token![,]>,
 }
 
+#[derive(Debug)]
 pub(crate) struct WithAttribute {
     pub(crate) with: kw::with,
     pub(crate) paren: Paren,
